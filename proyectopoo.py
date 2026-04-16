@@ -9,8 +9,9 @@ class Pokemon:
     RECUPERACION_DESCANSO = 20
     DAÑO_BASE = 15
 
-    def __init__(self, nombre, hp_maximo, energia_maxima):
+    def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Normal"):
         self._nombre = nombre
+        self._tipo = tipo
         self._hp_maximo = int(hp_maximo)
         self._energia_maxima = int(energia_maxima)
         self._hp_actual = int(hp_maximo)
@@ -21,6 +22,10 @@ class Pokemon:
     @property
     def nombre(self):
         return self._nombre
+
+    @property
+    def tipo(self):
+        return self._tipo
 
     @property
     def hp_actual(self):
@@ -176,14 +181,119 @@ def crear_pokemon_desde_catalogo(opcion):
     energia_maxima = datos["energia_maxima"]
 
     if tipo == "Fuego":
-        return PokemonFuego(nombre, hp_maximo, energia_maxima)
+        return PokemonFuego(nombre, hp_maximo, energia_maxima, tipo)
     if tipo == "Agua":
-        return PokemonAgua(nombre, hp_maximo, energia_maxima)
+        return PokemonAgua(nombre, hp_maximo, energia_maxima, tipo)
     if tipo == "Planta":
-        return PokemonPlanta(nombre, hp_maximo, energia_maxima)
+        return PokemonPlanta(nombre, hp_maximo, energia_maxima, tipo)
     if tipo == "Electrico":
-        return PokemonElectrico(nombre, hp_maximo, energia_maxima)
-    return Pokemon(nombre, hp_maximo, energia_maxima)
+        return PokemonElectrico(nombre, hp_maximo, energia_maxima, tipo)
+    return Pokemon(nombre, hp_maximo, energia_maxima, tipo)
+
+
+def solicitar_opcion_valida(mensaje, opciones_validas):
+    while True:
+        opcion = input(mensaje).strip()
+        if opcion in opciones_validas:
+            return opcion
+        print("Entrada invalida. Intenta de nuevo.")
+
+
+def seleccionar_pokemon_jugador(etiqueta_jugador):
+    print(f"\n{etiqueta_jugador}, elige tu Pokemon:")
+    opcion = solicitar_opcion_valida(
+        "Numero de Pokemon: ",
+        CATALOGO_POKEMON.keys(),
+    )
+    pokemon = crear_pokemon_desde_catalogo(opcion)
+    print(f"{etiqueta_jugador} selecciono a {pokemon.nombre} ({pokemon.tipo}).")
+    return pokemon
+
+
+def seleccionar_pokemon_cpu():
+    opcion = random.choice(list(CATALOGO_POKEMON.keys()))
+    pokemon = crear_pokemon_desde_catalogo(opcion)
+    print(f"La computadora selecciono a {pokemon.nombre} ({pokemon.tipo}).")
+    return pokemon
+
+
+def mostrar_menu_acciones(jugador, pokemon):
+    print(f"\nTURNO DE {pokemon.nombre.upper()} ({jugador})")
+    print(pokemon.estado())
+    print("1. Atacar (Costo: 15 EP)")
+    print("2. Defender (Costo: 5 EP)")
+    print("3. Descansar (Recupera: 20 EP)")
+
+
+def elegir_accion_jugador(jugador, pokemon):
+    mostrar_menu_acciones(jugador, pokemon)
+    return solicitar_opcion_valida("Opcion: ", {"1", "2", "3"})
+
+
+def elegir_accion_computadora(pokemon):
+    opciones = []
+    if pokemon.energia_actual >= Pokemon.COSTO_ATAQUE:
+        opciones.extend(["1", "1", "1"])
+    if pokemon.energia_actual >= Pokemon.COSTO_DEFENSA:
+        opciones.extend(["2", "2"])
+    opciones.append("3")
+    return random.choice(opciones)
+
+
+def ejecutar_accion(pokemon_activo, pokemon_objetivo, accion):
+    if accion == "1":
+        _, mensaje, _ = pokemon_activo.atacar(pokemon_objetivo)
+        return mensaje
+    if accion == "2":
+        _, mensaje = pokemon_activo.defender()
+        return mensaje
+    _, mensaje = pokemon_activo.descansar()
+    return mensaje
+
+
+def jugar_turno(nombre_jugador, pokemon_activo, pokemon_objetivo, es_cpu=False):
+    if not pokemon_activo.iniciar_turno():
+        print(f"{pokemon_activo.nombre} esta paralizado y pierde su turno.")
+        return
+
+    if es_cpu:
+        accion = elegir_accion_computadora(pokemon_activo)
+        nombre_accion = {"1": "Atacar", "2": "Defender", "3": "Descansar"}[accion]
+        print(f"\nLa computadora elige: {nombre_accion}")
+    else:
+        accion = elegir_accion_jugador(nombre_jugador, pokemon_activo)
+
+    resultado = ejecutar_accion(pokemon_activo, pokemon_objetivo, accion)
+    print(resultado)
+
+
+def mostrar_estado_batalla(pokemon_1, pokemon_2):
+    print("\nESTADO ACTUAL")
+    print(pokemon_1.estado())
+    print(pokemon_2.estado())
+
+
+def ejecutar_batalla(nombre_1, pokemon_1, nombre_2, pokemon_2, jugador_2_es_cpu=False):
+    print("\nCOMIENZA LA BATALLA")
+    print(f"{pokemon_1.nombre} ({pokemon_1.tipo}) vs {pokemon_2.nombre} ({pokemon_2.tipo})")
+
+    turno_jugador_1 = True
+    while not pokemon_1.esta_fuera_de_combate() and not pokemon_2.esta_fuera_de_combate():
+        if turno_jugador_1:
+            jugar_turno(nombre_1, pokemon_1, pokemon_2)
+        else:
+            jugar_turno(nombre_2, pokemon_2, pokemon_1, es_cpu=jugador_2_es_cpu)
+
+        mostrar_estado_batalla(pokemon_1, pokemon_2)
+        turno_jugador_1 = not turno_jugador_1
+
+    print("\nFIN DEL COMBATE")
+    if pokemon_1.esta_fuera_de_combate() and pokemon_2.esta_fuera_de_combate():
+        print("Empate: ambos Pokemon cayeron al mismo tiempo.")
+    elif pokemon_2.esta_fuera_de_combate():
+        print(f"Gana {nombre_1} con {pokemon_1.nombre}.")
+    else:
+        print(f"Gana {nombre_2} con {pokemon_2.nombre}.")
 
 
 def main():
@@ -191,17 +301,35 @@ def main():
     print("      SIMULADOR DE BATALLAS POKEMON (POO)")
     print("=" * 45)
 
+    print("Selecciona el modo de juego:")
+    print("1. Jugador vs Jugador")
+    print("2. Jugador vs Computadora")
+    modo = solicitar_opcion_valida("Opcion: ", {"1", "2"})
+
     mostrar_catalogo_disponible()
 
-    opcion = input("Elige un Pokemon por numero: ").strip()
-    pokemon = crear_pokemon_desde_catalogo(opcion)
+    pokemon_jugador_1 = seleccionar_pokemon_jugador("Jugador 1")
 
-    if pokemon is None:
-        print("Seleccion invalida.")
+    if modo == "1":
+        pokemon_jugador_2 = seleccionar_pokemon_jugador("Jugador 2")
+        ejecutar_batalla(
+            "Jugador 1",
+            pokemon_jugador_1,
+            "Jugador 2",
+            pokemon_jugador_2,
+            jugador_2_es_cpu=False,
+        )
         return
 
-    print("Pokemon creado correctamente.")
-    print(pokemon.estado())
+    print("\nComputadora seleccionando combatiente...")
+    pokemon_computadora = seleccionar_pokemon_cpu()
+    ejecutar_batalla(
+        "Jugador",
+        pokemon_jugador_1,
+        "Computadora",
+        pokemon_computadora,
+        jugador_2_es_cpu=True,
+    )
 
 
 if __name__ == "__main__":
