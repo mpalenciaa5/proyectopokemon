@@ -8,8 +8,9 @@ class Pokemon:
     COSTO_DEFENSA = 5
     RECUPERACION_DESCANSO = 20
     DAÑO_BASE = 15
+    STATS_BASE = {"attack": 10, "defense": 8, "speed": 5}
 
-    def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Normal"):
+    def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Normal", stats=None):
         self._nombre = nombre
         self._tipo = tipo
         self._hp_maximo = int(hp_maximo)
@@ -18,6 +19,7 @@ class Pokemon:
         self._energia_actual = int(energia_maxima)
         self._defensa_activa = False
         self._turnos_paralizado = 0
+        self._stats = stats or self.STATS_BASE.copy()
 
     @property
     def nombre(self):
@@ -62,6 +64,18 @@ class Pokemon:
         return self._energia_maxima
 
     @property
+    def attack(self):
+        return self._stats.get("attack", 10)
+
+    @property
+    def defense(self):
+        return self._stats.get("defense", 8)
+
+    @property
+    def speed(self):
+        return self._stats.get("speed", 5)
+
+    @property
     def esta_defendiendo(self):
         return self._defensa_activa
 
@@ -80,8 +94,10 @@ class Pokemon:
 
     def recibir_danio(self, danio):
         daño_final = int(danio)
+        reduce_defensa = int(self.defense / 2)
+        daño_final = max(1, daño_final - reduce_defensa)
         if self._defensa_activa:
-            daño_final = daño_final // 2
+            daño_final = int(daño_final * 0.5)
             self._defensa_activa = False
         self.hp_actual -= daño_final
         return daño_final
@@ -108,7 +124,7 @@ class Pokemon:
 
         self.energia_actual -= self.COSTO_ATAQUE
         multiplicador = self.calcular_multiplicador(oponente)
-        daño = int(self.DAÑO_BASE * multiplicador)
+        daño = int((self.DAÑO_BASE + self.attack) * multiplicador)
         daño_aplicado = oponente.recibir_danio(daño)
 
         if multiplicador > 1:
@@ -129,13 +145,19 @@ class Pokemon:
         if self._turnos_paralizado > 0:
             etiquetas.append("PAR")
         sufijo = f" [{'|'.join(etiquetas)}]" if etiquetas else ""
+        stats_texto = f" | ATK: {self.attack} | DEF: {self.defense} | SPD: {self.speed}"
         return (
             f"[{self.nombre}] HP: {self.hp_actual}/{self.hp_maximo} | "
-            f"EP: {self.energia_actual}/{self.energia_maxima}{sufijo}"
+            f"EP: {self.energia_actual}/{self.energia_maxima}{sufijo}{stats_texto}"
         )
 
 
 class PokemonAgua(Pokemon):
+    STATS_BASE = {"attack": 12, "defense": 11, "speed": 6}
+    
+    def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Agua"):
+        super().__init__(nombre, hp_maximo, energia_maxima, tipo, self.STATS_BASE.copy())
+    
     def calcular_multiplicador(self, oponente):
         if isinstance(oponente, PokemonFuego):
             return 2
@@ -143,6 +165,11 @@ class PokemonAgua(Pokemon):
 
 
 class PokemonFuego(Pokemon):
+    STATS_BASE = {"attack": 14, "defense": 9, "speed": 10}
+    
+    def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Fuego"):
+        super().__init__(nombre, hp_maximo, energia_maxima, tipo, self.STATS_BASE.copy())
+    
     def calcular_multiplicador(self, oponente):
         if isinstance(oponente, PokemonPlanta):
             return 2
@@ -150,6 +177,11 @@ class PokemonFuego(Pokemon):
 
 
 class PokemonPlanta(Pokemon):
+    STATS_BASE = {"attack": 11, "defense": 12, "speed": 7}
+    
+    def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Planta"):
+        super().__init__(nombre, hp_maximo, energia_maxima, tipo, self.STATS_BASE.copy())
+    
     def calcular_multiplicador(self, oponente):
         if isinstance(oponente, PokemonAgua):
             return 2
@@ -157,7 +189,11 @@ class PokemonPlanta(Pokemon):
 
 
 class PokemonElectrico(Pokemon):
+    STATS_BASE = {"attack": 10, "defense": 9, "speed": 14}
     PROBABILIDAD_PARALISIS = 0.2
+
+    def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Electrico"):
+        super().__init__(nombre, hp_maximo, energia_maxima, tipo, self.STATS_BASE.copy())
 
     def atacar(self, oponente):
         exito, mensaje, daño = super().atacar(oponente)
@@ -197,6 +233,13 @@ def solicitar_opcion_valida(mensaje, opciones_validas):
         if opcion in opciones_validas:
             return opcion
         print("Entrada invalida. Intenta de nuevo.")
+
+
+def determinar_primer_atacante(pokemon_1, pokemon_2):
+    """Retorna True si pokemon_1 ataca primero, False si pokemon_2."""
+    if pokemon_1.speed != pokemon_2.speed:
+        return pokemon_1.speed > pokemon_2.speed
+    return random.choice([True, False])
 
 
 def seleccionar_pokemon_jugador(etiqueta_jugador):
@@ -276,8 +319,15 @@ def mostrar_estado_batalla(pokemon_1, pokemon_2):
 def ejecutar_batalla(nombre_1, pokemon_1, nombre_2, pokemon_2, jugador_2_es_cpu=False):
     print("\nCOMIENZA LA BATALLA")
     print(f"{pokemon_1.nombre} ({pokemon_1.tipo}) vs {pokemon_2.nombre} ({pokemon_2.tipo})")
+    print(f"Velocidades: {pokemon_1.nombre} (SPD: {pokemon_1.speed}) vs {pokemon_2.nombre} (SPD: {pokemon_2.speed})")
+    
+    ataca_primero_1 = determinar_primer_atacante(pokemon_1, pokemon_2)
+    if ataca_primero_1:
+        print(f"{pokemon_1.nombre} ataca primero por tener mayor velocidad.")
+    else:
+        print(f"{pokemon_2.nombre} ataca primero por tener mayor velocidad.")
 
-    turno_jugador_1 = True
+    turno_jugador_1 = ataca_primero_1
     while not pokemon_1.esta_fuera_de_combate() and not pokemon_2.esta_fuera_de_combate():
         if turno_jugador_1:
             jugar_turno(nombre_1, pokemon_1, pokemon_2)
