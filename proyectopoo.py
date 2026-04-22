@@ -8,6 +8,9 @@ class Pokemon:
     COSTO_DEFENSA = 5
     RECUPERACION_DESCANSO = 20
     DAÑO_BASE = 15
+    TASA_CRITICO = 0.15
+    TASA_ENVENENAMIENTO = 0.1
+    TASA_QUEMADURA = 0.1
     STATS_BASE = {"attack": 10, "defense": 8, "speed": 5}
 
     def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Normal", stats=None):
@@ -19,7 +22,11 @@ class Pokemon:
         self._energia_actual = int(energia_maxima)
         self._defensa_activa = False
         self._turnos_paralizado = 0
+        self._envenenado = False
+        self._quemado = False
         self._stats = stats or self.STATS_BASE.copy()
+        self._golpes_conectados = 0
+        self._golpes_evitados = 0
 
     @property
     def nombre(self):
@@ -83,6 +90,22 @@ class Pokemon:
     def esta_paralizado(self):
         return self._turnos_paralizado > 0
 
+    @property
+    def esta_envenenado(self):
+        return self._envenenado
+
+    @property
+    def esta_quemado(self):
+        return self._quemado
+
+    @property
+    def golpes_conectados(self):
+        return self._golpes_conectados
+
+    @property
+    def golpes_evitados(self):
+        return self._golpes_evitados
+
     def esta_fuera_de_combate(self):
         return self.hp_actual == 0
 
@@ -100,6 +123,14 @@ class Pokemon:
             daño_final = int(daño_final * 0.5)
             self._defensa_activa = False
         self.hp_actual -= daño_final
+        self._golpes_conectados += 1
+        
+        # Daño adicional por envenenamiento
+        if self._envenenado:
+            daño_veneno = max(1, int(self.hp_maximo * 0.1))
+            self.hp_actual -= daño_veneno
+            daño_final += daño_veneno
+        
         return daño_final
 
     def defender(self):
@@ -115,6 +146,24 @@ class Pokemon:
         recuperado = self.energia_actual - energia_antes
         return True, f"{self.nombre} descansa y recupera {recuperado} EP."
 
+    def aplicar_envenenamiento(self):
+        """Aplica el efecto de envenenamiento"""
+        if not self._envenenado:
+            self._envenenado = True
+            return True, f"{self.nombre} fue envenenado."
+        return False, f"{self.nombre} ya está envenenado."
+
+    def aplicar_quemadura(self):
+        """Aplica el efecto de quemadura y reduce ataque"""
+        if not self._quemado:
+            self._quemado = True
+            return True, f"{self.nombre} fue quemado y su ataque se reduce."
+        return False, f"{self.nombre} ya está quemado."
+
+    def es_critico(self):
+        """Determina si el ataque será crítico"""
+        return random.random() < self.TASA_CRITICO
+
     def calcular_multiplicador(self, oponente):
         return 1
 
@@ -125,17 +174,40 @@ class Pokemon:
         self.energia_actual -= self.COSTO_ATAQUE
         multiplicador = self.calcular_multiplicador(oponente)
         daño = int((self.DAÑO_BASE + self.attack) * multiplicador)
+        
+        # Reducir daño si está quemado
+        if self._quemado:
+            daño = int(daño * 0.75)
+        
+        # Determinar si es crítico
+        es_critico = self.es_critico()
+        if es_critico:
+            daño = int(daño * 1.5)
+        
         daño_aplicado = oponente.recibir_danio(daño)
 
+        # Construir mensaje
+        mensaje = f"{self.nombre} ataca a {oponente.nombre}. "
+        
+        if es_critico:
+            mensaje += "¡GOLPE CRÍTICO! "
+        
         if multiplicador > 1:
-            texto_efecto = "Es super efectivo"
-        else:
-            texto_efecto = "Golpe normal"
-
-        mensaje = (
-            f"{self.nombre} ataca a {oponente.nombre}. "
-            f"{texto_efecto}: {daño_aplicado} de daño."
-        )
+            mensaje += "Es super efectivo. "
+        
+        mensaje += f"{daño_aplicado} de daño."
+        
+        # Aplicar efectos aleatorios
+        if not oponente.esta_fuera_de_combate() and random.random() < self.TASA_ENVENENAMIENTO:
+            exito, efecto_msg = oponente.aplicar_envenenamiento()
+            if exito:
+                mensaje += f" {efecto_msg}"
+        
+        if not oponente.esta_fuera_de_combate() and random.random() < self.TASA_QUEMADURA:
+            exito, efecto_msg = oponente.aplicar_quemadura()
+            if exito:
+                mensaje += f" {efecto_msg}"
+        
         return True, mensaje, daño_aplicado
 
     def estado(self):
@@ -144,6 +216,10 @@ class Pokemon:
             etiquetas.append("DEF")
         if self._turnos_paralizado > 0:
             etiquetas.append("PAR")
+        if self._envenenado:
+            etiquetas.append("ENV")
+        if self._quemado:
+            etiquetas.append("QUE")
         sufijo = f" [{'|'.join(etiquetas)}]" if etiquetas else ""
         stats_texto = f" | ATK: {self.attack} | DEF: {self.defense} | SPD: {self.speed}"
         return (
