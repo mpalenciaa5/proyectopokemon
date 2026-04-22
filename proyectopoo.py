@@ -3,6 +3,7 @@ import random
 from pokedex import CATALOGO_POKEMON, mostrar_catalogo_disponible
 
 
+# Clase base con estado comun y mecanicas generales de combate.
 class Pokemon:
     COSTO_ATAQUE = 15
     COSTO_DEFENSA = 5
@@ -13,6 +14,7 @@ class Pokemon:
     TASA_QUEMADURA = 0.1
     STATS_BASE = {"attack": 10, "defense": 8, "speed": 5}
 
+    # Inicializa identidad, recursos de combate, estados alterados y estadisticas.
     def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Normal", stats=None):
         self._nombre = nombre
         self._tipo = tipo
@@ -109,12 +111,14 @@ class Pokemon:
     def esta_fuera_de_combate(self):
         return self.hp_actual == 0
 
+    # Si esta paralizado, pierde el turno actual y consume un turno de paralisis.
     def iniciar_turno(self):
         if self._turnos_paralizado > 0:
             self._turnos_paralizado -= 1
             return False
         return True
 
+    # Aplica dano final considerando defensa, estado de defensa activa y veneno.
     def recibir_danio(self, danio):
         daño_final = int(danio)
         reduce_defensa = int(self.defense / 2)
@@ -133,6 +137,7 @@ class Pokemon:
         
         return daño_final
 
+    # Activa defensa para reducir el siguiente dano recibido.
     def defender(self):
         if self.energia_actual < self.COSTO_DEFENSA:
             return False, f"{self.nombre} no tiene energia suficiente para defender."
@@ -140,12 +145,14 @@ class Pokemon:
         self._defensa_activa = True
         return True, f"{self.nombre} adopta una postura defensiva."
 
+    # Recupera energia durante el turno.
     def descansar(self):
         energia_antes = self.energia_actual
         self.energia_actual += self.RECUPERACION_DESCANSO
         recuperado = self.energia_actual - energia_antes
         return True, f"{self.nombre} descansa y recupera {recuperado} EP."
 
+    # Marca al Pokemon con veneno para aplicar dano periodico.
     def aplicar_envenenamiento(self):
         """Aplica el efecto de envenenamiento"""
         if not self._envenenado:
@@ -153,6 +160,7 @@ class Pokemon:
             return True, f"{self.nombre} fue envenenado."
         return False, f"{self.nombre} ya está envenenado."
 
+    # Marca al Pokemon con quemadura para reducir su dano ofensivo.
     def aplicar_quemadura(self):
         """Aplica el efecto de quemadura y reduce ataque"""
         if not self._quemado:
@@ -160,13 +168,16 @@ class Pokemon:
             return True, f"{self.nombre} fue quemado y su ataque se reduce."
         return False, f"{self.nombre} ya está quemado."
 
+    # Determina si el ataque actual sera critico.
     def es_critico(self):
         """Determina si el ataque será crítico"""
         return random.random() < self.TASA_CRITICO
 
+    # Punto de extension para ventajas por tipo en clases hijas.
     def calcular_multiplicador(self, oponente):
         return 1
 
+    # Flujo principal de ataque: energia, calculo de dano, criticos y efectos.
     def atacar(self, oponente):
         if self.energia_actual < self.COSTO_ATAQUE:
             return False, f"{self.nombre} no tiene energia suficiente para atacar.", 0
@@ -210,6 +221,7 @@ class Pokemon:
         
         return True, mensaje, daño_aplicado
 
+    # Resume estado de combate y estadisticas visibles para interfaz.
     def estado(self):
         etiquetas = []
         if self._defensa_activa:
@@ -228,6 +240,7 @@ class Pokemon:
         )
 
 
+# Especializacion de tipo Agua con ventaja contra Fuego.
 class PokemonAgua(Pokemon):
     STATS_BASE = {"attack": 12, "defense": 11, "speed": 6}
     
@@ -239,7 +252,15 @@ class PokemonAgua(Pokemon):
             return 2
         return 1
 
+    # Sobrescritura polimorfica del ataque para comportamiento distintivo de tipo.
+    def atacar(self, oponente):
+        exito, mensaje, dano = super().atacar(oponente)
+        if not exito:
+            return exito, mensaje, dano
+        return exito, f"{mensaje} Oleada de agua impacta al objetivo.", dano
 
+
+# Especializacion de tipo Fuego con ventaja contra Planta.
 class PokemonFuego(Pokemon):
     STATS_BASE = {"attack": 14, "defense": 9, "speed": 10}
     
@@ -251,7 +272,15 @@ class PokemonFuego(Pokemon):
             return 2
         return 1
 
+    # Sobrescritura polimorfica del ataque para comportamiento distintivo de tipo.
+    def atacar(self, oponente):
+        exito, mensaje, dano = super().atacar(oponente)
+        if not exito:
+            return exito, mensaje, dano
+        return exito, f"{mensaje} Llamas abrasadoras envuelven al rival.", dano
 
+
+# Especializacion de tipo Planta con ventaja contra Agua.
 class PokemonPlanta(Pokemon):
     STATS_BASE = {"attack": 11, "defense": 12, "speed": 7}
     
@@ -263,7 +292,15 @@ class PokemonPlanta(Pokemon):
             return 2
         return 1
 
+    # Sobrescritura polimorfica del ataque para comportamiento distintivo de tipo.
+    def atacar(self, oponente):
+        exito, mensaje, dano = super().atacar(oponente)
+        if not exito:
+            return exito, mensaje, dano
+        return exito, f"{mensaje} Enredaderas golpean con precision.", dano
 
+
+# Especializacion de tipo Electrico con chance de paralizar al oponente.
 class PokemonElectrico(Pokemon):
     STATS_BASE = {"attack": 10, "defense": 9, "speed": 14}
     PROBABILIDAD_PARALISIS = 0.2
@@ -271,6 +308,7 @@ class PokemonElectrico(Pokemon):
     def __init__(self, nombre, hp_maximo, energia_maxima, tipo="Electrico"):
         super().__init__(nombre, hp_maximo, energia_maxima, tipo, self.STATS_BASE.copy())
 
+    # Sobrescritura de ataque para agregar efecto de paralisis.
     def atacar(self, oponente):
         exito, mensaje, daño = super().atacar(oponente)
         if not exito:
@@ -282,6 +320,7 @@ class PokemonElectrico(Pokemon):
         return exito, mensaje, daño
 
 
+# Fabrica de objetos: crea la clase concreta segun datos del catalogo.
 def crear_pokemon_desde_catalogo(opcion):
     datos = CATALOGO_POKEMON.get(opcion)
     if datos is None:
@@ -303,14 +342,20 @@ def crear_pokemon_desde_catalogo(opcion):
     return Pokemon(nombre, hp_maximo, energia_maxima, tipo)
 
 
+# Valida entradas numericas del menu y maneja errores con try/except.
 def solicitar_opcion_valida(mensaje, opciones_validas):
     while True:
-        opcion = input(mensaje).strip()
-        if opcion in opciones_validas:
-            return opcion
-        print("Entrada invalida. Intenta de nuevo.")
+        try:
+            opcion_cruda = input(mensaje).strip()
+            opcion = str(int(opcion_cruda))
+            if opcion in opciones_validas:
+                return opcion
+            print("Entrada invalida. Intenta de nuevo.")
+        except (ValueError, TypeError):
+            print("Entrada invalida. Usa solo numeros del menu.")
 
 
+# Define quien inicia usando velocidad; en empate decide al azar.
 def determinar_primer_atacante(pokemon_1, pokemon_2):
     """Retorna True si pokemon_1 ataca primero, False si pokemon_2."""
     if pokemon_1.speed != pokemon_2.speed:
@@ -318,6 +363,7 @@ def determinar_primer_atacante(pokemon_1, pokemon_2):
     return random.choice([True, False])
 
 
+# Flujo de seleccion manual del jugador desde el catalogo.
 def seleccionar_pokemon_jugador(etiqueta_jugador):
     print(f"\n{etiqueta_jugador}, elige tu Pokemon:")
     opcion = solicitar_opcion_valida(
@@ -329,6 +375,7 @@ def seleccionar_pokemon_jugador(etiqueta_jugador):
     return pokemon
 
 
+# Seleccion automatica para el modo CPU.
 def seleccionar_pokemon_cpu():
     opcion = random.choice(list(CATALOGO_POKEMON.keys()))
     pokemon = crear_pokemon_desde_catalogo(opcion)
@@ -336,6 +383,7 @@ def seleccionar_pokemon_cpu():
     return pokemon
 
 
+# Renderiza acciones disponibles para el turno del jugador.
 def mostrar_menu_acciones(jugador, pokemon):
     print(f"\nTURNO DE {pokemon.nombre.upper()} ({jugador})")
     print(pokemon.estado())
@@ -344,11 +392,13 @@ def mostrar_menu_acciones(jugador, pokemon):
     print("3. Descansar (Recupera: 20 EP)")
 
 
+# Captura y valida accion del jugador.
 def elegir_accion_jugador(jugador, pokemon):
     mostrar_menu_acciones(jugador, pokemon)
     return solicitar_opcion_valida("Opcion: ", {"1", "2", "3"})
 
 
+# Heuristica simple de decisiones para la computadora.
 def elegir_accion_computadora(pokemon):
     opciones = []
     if pokemon.energia_actual >= Pokemon.COSTO_ATAQUE:
@@ -359,6 +409,7 @@ def elegir_accion_computadora(pokemon):
     return random.choice(opciones)
 
 
+# Ejecuta accion elegida y retorna el mensaje resultante.
 def ejecutar_accion(pokemon_activo, pokemon_objetivo, accion):
     if accion == "1":
         _, mensaje, _ = pokemon_activo.atacar(pokemon_objetivo)
@@ -370,6 +421,7 @@ def ejecutar_accion(pokemon_activo, pokemon_objetivo, accion):
     return mensaje
 
 
+# Orquesta un turno completo para jugador o CPU.
 def jugar_turno(nombre_jugador, pokemon_activo, pokemon_objetivo, es_cpu=False):
     if not pokemon_activo.iniciar_turno():
         print(f"{pokemon_activo.nombre} esta paralizado y pierde su turno.")
@@ -386,12 +438,14 @@ def jugar_turno(nombre_jugador, pokemon_activo, pokemon_objetivo, es_cpu=False):
     print(resultado)
 
 
+# Muestra estado consolidado de ambos combatientes al final de cada turno.
 def mostrar_estado_batalla(pokemon_1, pokemon_2):
     print("\nESTADO ACTUAL")
     print(pokemon_1.estado())
     print(pokemon_2.estado())
 
 
+# Bucle principal de combate hasta que uno de los dos quede fuera.
 def ejecutar_batalla(nombre_1, pokemon_1, nombre_2, pokemon_2, jugador_2_es_cpu=False):
     print("\nCOMIENZA LA BATALLA")
     print(f"{pokemon_1.nombre} ({pokemon_1.tipo}) vs {pokemon_2.nombre} ({pokemon_2.tipo})")
@@ -422,6 +476,7 @@ def ejecutar_batalla(nombre_1, pokemon_1, nombre_2, pokemon_2, jugador_2_es_cpu=
         print(f"Gana {nombre_2} con {pokemon_2.nombre}.")
 
 
+# Punto de entrada del programa: modo de juego, seleccion y arranque de batalla.
 def main():
     print("=" * 45)
     print("      SIMULADOR DE BATALLAS POKEMON (POO)")
